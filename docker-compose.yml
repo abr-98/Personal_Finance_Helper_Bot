@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+
+  financial_trends_api:
+    build:
+      context: ./financial_trends
+      dockerfile: Dockerfile.api
+    container_name: fastapi_app_financial_trends
+    ports:
+      - "8001:8001"
+
+  financial_trends_mcp:
+    build:
+      context: ./financial_trends
+      dockerfile: Dockerfile.mcp
+    container_name: mcp_server_financial_trends
+    ports:
+      - "8000:8000"
+
+  personal_spending_habits_api:
+    build:
+      context: ./personal_spending_habits
+      dockerfile: Dockerfile.api
+    container_name: fastapi_app_personal_spending_habits
+    ports:
+      - "8011:8001"
+
+  personal_spending_habits_mcp:
+    build:
+      context: ./personal_spending_habits
+      dockerfile: Dockerfile.mcp
+    container_name: mcp_server_personal_spending_habits
+    ports:
+      - "8010:8000"
+
+  risk_estimator_api:
+    build:
+      context: ./risk_estimator
+      dockerfile: Dockerfile.api
+    container_name: fastapi_app_risk_estimator
+    ports:
+      - "8021:8001"
+      
+  risk_estimator_mcp:
+    build:
+      context: ./risk_estimator
+      dockerfile: Dockerfile.mcp
+    container_name: mcp_server_risk_estimator
+    ports:
+      - "8020:8000"
