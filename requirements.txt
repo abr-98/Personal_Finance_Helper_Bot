@@ -9,3 +9,9 @@ uvicorn
 fastapi
 dill
 fastmcp
+langchain
+openai
+langchain-openai
+langgraph
+langchain-mcp-adapters
+langchain_tavily

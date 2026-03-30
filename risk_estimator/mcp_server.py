@@ -2,59 +2,83 @@ import pandas as pd
 import joblib
 from fastmcp import FastMCP
 from warnings import filterwarnings
+from pydantic import BaseModel, Field
 
 filterwarnings("ignore")
 
-mcp = FastMCP(title="Risk Estimator API")
+mcp = FastMCP("Risk Estimator API")
 
 model = joblib.load("rf_model.pkl")
 lime_explainer = joblib.load("lime_explainer.pkl")
 
+class UserData(BaseModel):
+    BankruptcyHistory: int = Field(example=0)
+    LoanAmountToIncome: float = Field(example=0.3)
+    PreviousLoanDefaults: int = Field(example=0)
+    CreditScore: float = Field(example=700)
+    TotalLiabilitiesToIncome: float = Field(example=0.5)
+    Experience: int = Field(example=5)
+    Age: int = Field(example=30)
+    EducationLevel: int = Field(example=3)
+    NetWorthToIncome: float = Field(example=1.5)
+    EmploymentStatus_Unemployed: int = Field(example=0)
+
+class ReturnData(BaseModel):
+    potential_risk_class: str
+    explanation: list
+
+
 @mcp.tool()
 def analyze_risk(
-    BankruptcyHistory: int,
-    LoanAmountToIncome: float,
-    PreviousLoanDefaults: int,
-    CreditScore: float,
-    TotalLiabilitiesToIncome: float,
-    Experience: int,
-    Age: int,
-    EducationLevel: int,
-    NetWorthToIncome: float,
-    EmploymentStatus_Unemployed: int
-) -> dict:
+    UserData: UserData
+) -> ReturnData:
 
     """
-        Analyze potential risk based on user input.
-
-        Parameters:
-        - BankruptcyHistory (int): Whether the user has a history of bankruptcy (0 or 1).
-        - LoanAmountToIncome (float): The ratio of the loan amount to the user's income.
-        - PreviousLoanDefaults (int): The number of previous loan defaults.
-        - CreditScore (float): The user's credit score.
-        - TotalLiabilitiesToIncome (float): The ratio of total liabilities to the user's income.
-        - Experience (int): The number of years of financial experience.
-        - Age (int): The age of the user.
-        - EducationLevel (int): The education level of the user (e.g., 1 for high school, 2 for bachelor's, etc.).
-        - NetWorthToIncome (float): The ratio of net worth to the user's income.
-        - EmploymentStatus_Unemployed (int): Whether the user is unemployed (0 or 1).
-
+        _summary_
+            "name": "analyze_risk",
+            "description": "Analyzes loan default risk based on financial and demographic indicators.",
+            "input_schema": {
+                "BankruptcyHistory": "integer",
+                "LoanAmountToIncome": "float",
+                "PreviousLoanDefaults": "integer",
+                "CreditScore": "float",
+                "TotalLiabilitiesToIncome": "float",
+                "Experience": "integer",
+                "Age": "integer",
+                "EducationLevel": "integer",
+                "NetWorthToIncome": "float",
+                "EmploymentStatus_Unemployed": "integer"
+            },
         Returns:
-        - dict: A dictionary containing the potential risk class and an explanation.
+            output_schema: {
+                "potential_risk_class": "string",
+                "explanation": "array"
+            }
     """
     try:
-        df = pd.DataFrame([{
-            "BankruptcyHistory": BankruptcyHistory,
-            "LoanAmountToIncome": LoanAmountToIncome,
-            "PreviousLoanDefaults": PreviousLoanDefaults,
-            "CreditScore": CreditScore,
-            "TotalLiabilitiesToIncome": TotalLiabilitiesToIncome,
-            "Experience": Experience,
-            "Age": Age,
-            "EducationLevel": EducationLevel,
-            "NetWorthToIncome": NetWorthToIncome,
-            "EmploymentStatus_Unemployed": EmploymentStatus_Unemployed
-        }])
+
+        dict_input = {
+            "BankruptcyHistory": UserData.BankruptcyHistory,
+            "LoanAmountToIncome": UserData.LoanAmountToIncome,
+            "PreviousLoanDefaults": UserData.PreviousLoanDefaults,
+            "CreditScore": UserData.CreditScore,
+            "TotalLiabilitiesToIncome": UserData.TotalLiabilitiesToIncome,
+            "Experience": UserData.Experience,
+            "Age": UserData.Age,
+            "EducationLevel": UserData.EducationLevel,
+            "NetWorthToIncome": UserData.NetWorthToIncome,
+            "EmploymentStatus_Unemployed": UserData.EmploymentStatus_Unemployed
+        }
+
+        missing = [k for k, v in dict_input.items() if v is None]
+
+        if missing:
+            return ReturnData(
+                potential_risk_class="Unknown",
+                explanation=[f"Missing fields: {', '.join(missing)}"]
+            )
+
+        df = pd.DataFrame([dict_input])
         df_val = df.values
         prediction = model.predict(df_val)[0]
         pred = int(prediction)
@@ -63,12 +87,15 @@ def analyze_risk(
 
         mapping = {0: "Low Risk", 1: "Medium Risk", 2: "High Risk"}
         risk_category = mapping.get(pred, "Unknown")
-        return {
-            "potential_risk_class": risk_category,
-            "explanation": explanation.as_list()
-        }
+        return ReturnData(
+            potential_risk_class=risk_category,
+            explanation=explanation.as_list()
+        )
     except Exception as e:
-        return {"error": str(e)}
+        return ReturnData(
+            potential_risk_class="Unknown",
+            explanation=[f"Error: {str(e)}"]
+        )
 
 if __name__ == "__main__":
     mcp.run("streamable-http")

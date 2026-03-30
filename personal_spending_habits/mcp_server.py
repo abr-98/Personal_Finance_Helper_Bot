@@ -3,98 +3,107 @@ import joblib
 from fastmcp import FastMCP
 from warnings import filterwarnings
 from utils import generate_advice_final
+from pydantic import BaseModel, Field
 
 
 filterwarnings("ignore")
 
-mcp = FastMCP(title="Personal Spending Habits API")
+mcp = FastMCP("Personal Spending Habits API")
 
 scaler = joblib.load("scaler.pkl")
 model = joblib.load("model.pkl")
 cluster = joblib.load("cluster.pkl")
 lime_explainer = joblib.load("lime_explainer.pkl")
 
-columns = [
-    "Age",
-    "Dependents",
-    "City_Tier",
-    "Rent_As_Percentage_Of_Income",
-    "Loan_Repayment_As_Percentage_Of_Income",
-    "Insurance_As_Percentage_Of_Income",
-    "Groceries_As_Percentage_Of_Income",
-    "Transport_As_Percentage_Of_Income",
-    "Eating_Out_As_Percentage_Of_Income",
-    "Entertainment_As_Percentage_Of_Income",
-    "Utilities_As_Percentage_Of_Income",
-    "Healthcare_As_Percentage_Of_Income",
-    "Education_As_Percentage_Of_Income",
-    "Miscellaneous_As_Percentage_Of_Income",
-    "Disposable_Income_As_Percentage_Of_Income"
-]
+
+class UserData(BaseModel):
+    Age: int = Field(example=30)
+    Dependents: int = Field(example=2)
+    City_Tier: int = Field(example=2, description="City tier (1, 2, or 3), 3 for rural areas and 1 for metropolitan areas")
+    Rent_As_Percentage_Of_Income: float = Field(example=30.5)
+    Loan_Repayment_As_Percentage_Of_Income: float = Field(example=15.0)
+    Insurance_As_Percentage_Of_Income: float = Field(example=10.0)
+    Groceries_As_Percentage_Of_Income: float = Field(example=20.0)
+    Transport_As_Percentage_Of_Income: float = Field(example=5.0)	
+    Eating_Out_As_Percentage_Of_Income: float = Field(example=10.0)
+    Entertainment_As_Percentage_Of_Income: float = Field(example=5.0)	
+    Utilities_As_Percentage_Of_Income: float = Field(example=10.0)
+    Healthcare_As_Percentage_Of_Income: float = Field(example=5.0)	
+    Education_As_Percentage_Of_Income: float = Field(example=10.0)	
+    Miscellaneous_As_Percentage_Of_Income: float = Field(example=5.0)	
+    Disposable_Income_As_Percentage_Of_Income: float = Field(example=15.0)
+
+class ReturnData(BaseModel):
+    potential_savings_class: str
+    explanation: list
+    average_behavior_summary_for_similar_users: dict
+    advice: str
 
 @mcp.tool()
 def potential_savings(
-    Age: int,
-    Dependents: int,
-    City_Tier: int,
-    Rent_As_Percentage_Of_Income: float,
-    Loan_Repayment_As_Percentage_Of_Income: float,
-    Insurance_As_Percentage_Of_Income: float,
-    Groceries_As_Percentage_Of_Income: float,
-    Transport_As_Percentage_Of_Income: float,
-    Eating_Out_As_Percentage_Of_Income: float,
-    Entertainment_As_Percentage_Of_Income: float,
-    Utilities_As_Percentage_Of_Income: float,
-    Healthcare_As_Percentage_Of_Income: float,
-    Education_As_Percentage_Of_Income: float,
-    Miscellaneous_As_Percentage_Of_Income: float,
-    Disposable_Income_As_Percentage_Of_Income: float
-) -> dict:
+    UserData: UserData
+) -> ReturnData:
 
     """
-        Analyze potential savings based on user input.
-
-        Parameters:
-        - Age (int): The age of the user.
-        - Dependents (int): The number of dependents the user has.
-        - City_Tier (int): The city tier of the user's residence (1, 2, or 3).
-        - Rent_As_Percentage_Of_Income (float): Rent as a percentage of income.
-        - Loan_Repayment_As_Percentage_Of_Income (float): Loan repayment as a percentage of income.
-        - Insurance_As_Percentage_Of_Income (float): Insurance as a percentage of income.
-        - Groceries_As_Percentage_Of_Income (float): Groceries as a percentage of income.
-        - Transport_As_Percentage_Of_Income (float): Transport as a percentage of income.
-        - Eating_Out_As_Percentage_Of_Income (float): Eating out as a percentage of income.
-        - Entertainment_As_Percentage_Of_Income (float): Entertainment as a percentage of income
-        - Utilities_As_Percentage_Of_Income (float): Utilities as a percentage of income.
-        - Healthcare_As_Percentage_Of_Income (float): Healthcare as a percentage of income.
-        - Education_As_Percentage_Of_Income (float): Education as a percentage of income.
-        - Miscellaneous_As_Percentage_Of_Income (float): Miscellaneous expenses as a percentage of income.
-        - Disposable_Income_As_Percentage_Of_Income (float): Disposable income as a percentage of income.
-        
+        _summary_
+            "name": "potential_savings",
+            "description": "Estimates savings potential and provides spending behavior insights with recommendations.",
+            "input_schema": {
+                "Age": "integer",
+                "Dependents": "integer",
+                "City_Tier": "integer",
+                "Rent_As_Percentage_Of_Income": "float",
+                "Loan_Repayment_As_Percentage_Of_Income": "float",
+                "Insurance_As_Percentage_Of_Income": "float",
+                "Groceries_As_Percentage_Of_Income": "float",
+                "Transport_As_Percentage_Of_Income": "float",
+                "Eating_Out_As_Percentage_Of_Income": "float",
+                "Entertainment_As_Percentage_Of_Income": "float",
+                "Utilities_As_Percentage_Of_Income": "float",
+                "Healthcare_As_Percentage_Of_Income": "float",
+                "Education_As_Percentage_Of_Income": "float",
+                "Miscellaneous_As_Percentage_Of_Income": "float",
+                "Disposable_Income_As_Percentage_Of_Income": "float"
+            },
         Returns:
-        - dict: A dictionary containing the potential savings class, explanation, average behavior summary for similar
-            users, and personalized advice.
+            output_schema: {
+                "potential_savings_class": "string",
+                "explanation": "array",
+                "average_behavior_summary_for_similar_users": "object",
+                "advice": "string"
+            }
         """
     try:
-        df = pd.DataFrame([{
-            "Age": Age,
-            "Dependents": Dependents,
-            "City_Tier": City_Tier,
-            "Rent": Rent_As_Percentage_Of_Income,
-            "Loan_Repayment": Loan_Repayment_As_Percentage_Of_Income,
-            "Insurance": Insurance_As_Percentage_Of_Income,
-            "Groceries": Groceries_As_Percentage_Of_Income,
-            "Transport": Transport_As_Percentage_Of_Income,
-            "Eating_Out": Eating_Out_As_Percentage_Of_Income,
-            "Entertainment": Entertainment_As_Percentage_Of_Income,
-            "Utilities": Utilities_As_Percentage_Of_Income,
-            "Healthcare": Healthcare_As_Percentage_Of_Income,
-            "Education": Education_As_Percentage_Of_Income,
-            "Miscellaneous": Miscellaneous_As_Percentage_Of_Income,
-            "Disposable_Income": Disposable_Income_As_Percentage_Of_Income
-        }])
 
-        df = df[columns]
+        dict_inp = {
+            "Age": UserData.Age,
+            "Dependents": UserData.Dependents,
+            "City_Tier": UserData.City_Tier,
+            "Rent": UserData.Rent_As_Percentage_Of_Income,
+            "Loan_Repayment": UserData.Loan_Repayment_As_Percentage_Of_Income,
+            "Insurance": UserData.Insurance_As_Percentage_Of_Income,
+            "Groceries": UserData.Groceries_As_Percentage_Of_Income,
+            "Transport": UserData.Transport_As_Percentage_Of_Income,
+            "Eating_Out": UserData.Eating_Out_As_Percentage_Of_Income,
+            "Entertainment": UserData.Entertainment_As_Percentage_Of_Income,
+            "Utilities": UserData.Utilities_As_Percentage_Of_Income,
+            "Healthcare": UserData.Healthcare_As_Percentage_Of_Income,
+            "Education": UserData.Education_As_Percentage_Of_Income,
+            "Miscellaneous": UserData.Miscellaneous_As_Percentage_Of_Income,
+            "Disposable_Income": UserData.Disposable_Income_As_Percentage_Of_Income
+        }
+
+        missing = [k for k, v in dict_inp.items() if v is None]
+        
+        if missing:
+            return ReturnData(
+                potential_savings_class="Unknown",
+                explanation=[],
+                average_behavior_summary_for_similar_users={},
+                advice=f"Missing fields: {', '.join(missing)}"
+            )
+
+        df = pd.DataFrame([dict_inp])
 
         df_val = df.values
         prediction = model.predict(df_val)[0]
@@ -129,14 +138,20 @@ def potential_savings(
         advice = generate_advice_final(df)
 
 
-        return {"potential_savings_class": category,
-                "explanation": explanation.as_list(),
-                "average_behavior_summary_for_similar_users": behavior_summary,
-                "advice": advice
-                }
+        return ReturnData(
+            potential_savings_class=category,
+            explanation=explanation.as_list(),
+            average_behavior_summary_for_similar_users=behavior_summary,
+            advice=" ".join(advice)
+        )
 
     except Exception as e:
-        return {"error": str(e)}
+        return ReturnData(
+            potential_savings_class="Unknown",
+            explanation=[f"Error: {str(e)}"],
+            average_behavior_summary_for_similar_users={},
+            advice=""
+        )
 
 if __name__ == "__main__":
     mcp.run("streamable-http")
